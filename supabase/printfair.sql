@@ -196,9 +196,7 @@ begin
     where student_id=v_user and (created_at at time zone 'Asia/Manila')::date=(now() at time zone 'Asia/Manila')::date;
   if v_reserved + p_requested_pages > 20 then raise exception 'The request exceeds your remaining daily 20-page allowance.'; end if;
 
-  v_expiry := ((date_trunc('day', now() at time zone 'Asia/Manila') + interval '16 hours 30 minutes') at time zone 'Asia/Manila');
-  if v_expiry <= now() then raise exception 'The library retrieval window for today has ended.'; end if;
-  v_id := 'PF-' || upper(substr(replace(gen_random_uuid()::text,'-',''),1,10));
+  v_expiry := now() + interval '24 hours'; v_id := 'PF-' || upper(substr(replace(gen_random_uuid()::text,'-',''),1,10));
   v_code := 'CN3-' || upper(substr(encode(gen_random_bytes(6),'hex'),1,10));
   insert into public.print_requests(
     id,student_id,student_name,student_email,student_year,student_program,
