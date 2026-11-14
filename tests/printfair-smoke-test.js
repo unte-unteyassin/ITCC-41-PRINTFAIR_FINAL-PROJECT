@@ -18,6 +18,9 @@ for (const range of invalid) {
 }
 assert.equal(rules.parsePageRange('1-8', 7), null, 'pages beyond the PDF must fail');
 assert.equal(rules.parsePageRange('1-5', 0), null, 'a PDF must have at least one page');
+assert.deepEqual(rules.expandPageRange('1-3, 5, 4', 10), [1,2,3,5,4]);
+assert.deepEqual(rules.expandPageRange('1-3,3-5', 10), [1,2,3,4,5]);
+assert.equal(rules.expandPageRange('1-11', 10), null);
 assert.equal(rules.canReserve(8, 8), true);
 assert.equal(rules.canReserve(7, 8), false);
 assert.equal(rules.canReserve(20, 0), false);
