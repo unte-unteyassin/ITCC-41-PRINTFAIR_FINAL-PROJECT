@@ -489,7 +489,8 @@
        <div class="field"><label for="correct-status">Request status</label><select id="correct-status">${VALID.filter(s=>permittedCorrection(r,s)).map(s=>`<option value="${s}" ${r.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
        <div class="field"><label for="correct-pages">Pages counted in allowance (0–${r.pages})</label><input id="correct-pages" type="number" min="0" max="${r.pages}" step="1" value="${r.countedPages}"></div>
        <div class="field"><label for="correct-reason">Reason for correction</label><textarea id="correct-reason" rows="2" placeholder="Describe the printing issue or correction"></textarea></div>
-       <p class="xs text-muted">Retrieved pages remain counted until staff explicitly corrects the allowance.</p>`,
+       <p class="xs text-muted">Retrieved pages remain counted until staff explicitly corrects the allowance.</p>
+       <p id="correction-error" class="correction-error" role="alert" aria-live="assertive" hidden></p>`,
        button('Cancel','close-modal','btn secondary') + button('Save correction','save-correction','btn'));
   }
   function onAction(action) {
@@ -565,14 +566,16 @@
       case 'save-correction': {
         const r=state.requests.find(x=>x.id===correctionTarget);if(!r)return;
         const next=$('#correct-status')?.value;const raw=$('#correct-pages')?.value;const pages=Number(raw);const reason=$('#correct-reason')?.value.trim();
-        if(!permittedCorrection(r,next)||raw===''||!Number.isInteger(pages)||pages<0||pages>r.pages) return notify('Enter a valid status and counted page total.');
-        if(!r.retrievedAt && pages>0) return notify('Pages cannot be counted before document retrieval.');
-        if(!reason) return notify('A correction reason is required.');
+        const correctionError=$('#correction-error');
+        const showCorrectionError=text=>{if(correctionError){correctionError.textContent=text;correctionError.hidden=false;correctionError.scrollIntoView({block:'nearest',behavior:'smooth'});}else notify(text);};
+        if(!permittedCorrection(r,next)||raw===''||!Number.isInteger(pages)||pages<0||pages>r.pages) return showCorrectionError('Enter a valid status and counted page total.');
+        if(!r.retrievedAt && pages>0) return showCorrectionError('Pages cannot be counted before document retrieval.');
+        if(!reason) return showCorrectionError('A correction reason is required.');
         const reservedOther=currentUserRequests().filter(x=>isToday(x)&&x.id!==r.id&&x.status==='Reserved').reduce((n,x)=>n+x.pages,0);
         const usedOther=currentUserRequests().filter(x=>isToday(x)&&x.id!==r.id).reduce((n,x)=>n+(x.countedPages||0),0);
-        if(r.email===state.student.email&&isToday(r)&&usedOther+reservedOther+pages+(next==='Reserved'?r.pages:0)>LIMIT) return notify('Correction would exceed the recorded daily allowance.');
+        if(r.email===state.student.email&&isToday(r)&&usedOther+reservedOther+pages+(next==='Reserved'?r.pages:0)>LIMIT) return showCorrectionError('Correction would exceed the recorded daily allowance.');
         if(cloudMode) {
-          backend.correctRequest(r.id,next,pages,reason).then(async()=>{await applyCloudState();dismissModal();render();notify('Correction saved to the shared request history.');}).catch(error=>notify(error.message));
+          backend.correctRequest(r.id,next,pages,reason).then(async()=>{await applyCloudState();dismissModal();render();notify('Correction saved to the shared request history.');}).catch(error=>showCorrectionError(error.message));
         } else {
           changeStatus(r,next,reason);r.countedPages=pages;
           state.corrections.push({id:r.id,status:next,previousStatus:r.history.at(-2)?.status||next,countedPages:pages,reason,at:now().toISOString()});

@@ -44,8 +44,9 @@
       authPanel.hidden = true; retrievePanel.hidden = false;
       staffLogout.hidden = true;
       const localState = getState(); if (localState?.stations) populateStations(localState.stations);
-      document.querySelector('#kiosk-mode-note').textContent = 'Demo mode only: student and kiosk data are stored in this browser profile.';
-      show('Demo mode: use the same browser profile as the student app. PDF storage is local to this browser.','info');
+      // Keep local-demo operation available without displaying the obsolete demo warning.
+      document.querySelector('#kiosk-mode-note').hidden = true;
+      message.textContent = ''; message.className = ''; 
       return;
     }
     authPanel.hidden = false; retrievePanel.hidden = true; staffLogout.hidden = true;
@@ -79,6 +80,20 @@
     } catch (error) { showStaff(error.message || 'Staff sign-in failed.'); }
   }
 
+  async function createRequestedPagesPdf(sourceBlob, record) {
+    if (!window.PDFLib?.PDFDocument) throw new Error('The PDF page processor could not load. Check the internet connection and reload the kiosk.');
+    const totalPages = Number(record.totalPages);
+    const pages = window.PrintFairRules?.expandPageRange(record.pageRange, totalPages);
+    if (!pages || pages.length !== Number(record.pages)) throw new Error('The saved page range is invalid or does not match the requested page count. Contact library staff.');
+    const source = await window.PDFLib.PDFDocument.load(await sourceBlob.arrayBuffer(), { ignoreEncryption: false });
+    if (source.getPageCount() !== totalPages) throw new Error(`The stored PDF has ${source.getPageCount()} pages, but the request recorded ${totalPages}. The document was not prepared.`);
+    const output = await window.PDFLib.PDFDocument.create();
+    const copied = await output.copyPages(source, pages.map(page => page - 1));
+    copied.forEach(page => output.addPage(page));
+    const bytes = await output.save();
+    return new Blob([bytes], { type: 'application/pdf' });
+  }
+
   async function localRetrieve(code) {
     const state = getState();
     if (!state) throw new Error('No local demo data found. Open the student app in this browser first.');
@@ -106,6 +121,7 @@
       demoSample = true;
     }
     if (!blob) throw new Error('The PDF file could not be found. The request was not marked as retrieved. Upload the document again in this browser.');
+    blob = await createRequestedPagesPdf(blob, record);
     record.status = 'Retrieved'; record.retrievedAt = time; record.countedPages = record.pages;
     record.stationId = stationId; record.reason = 'Document retrieved from the local kiosk demo';
     record.history ||= []; record.history.push({ status:'Retrieved', at:time, reason:record.reason });
@@ -124,16 +140,21 @@
         record = await backend.claimCode(code, document.querySelector('#station-id').value);
         if (record.status === 'Expired') throw new Error('This retrieval code has expired. The request remains in history.');
         if (record.status !== 'Retrieved') throw new Error('The retrieval could not be completed.');
-        url = await backend.signedPdfUrl(record.storagePath);
+        const sourceUrl = await backend.signedPdfUrl(record.storagePath);
+        const response = await fetch(sourceUrl);
+        if (!response.ok) throw new Error('The stored PDF could not be downloaded. The request was retrieved, but the file is unavailable.');
+        const preparedBlob = await createRequestedPagesPdf(await response.blob(), record);
+        url = URL.createObjectURL(preparedBlob);
+        currentObjectUrl = url;
       } else {
         const result = await localRetrieve(code);
         record = result.record; url = result.url; demoSample = result.demoSample;
         currentObjectUrl = url;
       }
       document.querySelector('#filename').textContent = record.file;
-      document.querySelector('#details').textContent = `${record.pages} pages requested · Range ${record.pageRange} · Retrieved`;
+      document.querySelector('#details').textContent = `${record.pages} selected pages · Original pages ${record.pageRange} · Retrieved`; 
       openPdf.href = url;
-      openPdf.textContent = demoSample ? 'Open sample PDF (demo only)' : 'Open prepared PDF';
+      openPdf.textContent = demoSample ? 'Open selected sample pages' : 'Open prepared PDF';
       openPdf.hidden = false;
       result.hidden = false;
       show(cloudMode ? 'Code accepted. The private PDF is ready to open on this library PC.' : 'Code accepted. Retrieval was recorded in this browser demo.', 'success');
