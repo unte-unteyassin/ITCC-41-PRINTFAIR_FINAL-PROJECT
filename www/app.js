@@ -511,7 +511,11 @@
       case 'role-admin': signInRole='admin';render();break;
       case 'sign-in': {
         const email=$('#login-email')?.value.trim();const pass=$('#login-password')?.value;
-        if(!email||!pass) return notify('Enter your XU email and password.');\n        const validStudentEmail=/^[^\\s@]+@my\\.xu\\.edu\\.ph$/i.test(email);\n        const validStaffEmail=/^[^\\s@]+@(?:xu\\.edu\\.ph|my\\.xu\\.edu\\.ph)$/i.test(email);\n        if(signInRole==='student'?!validStudentEmail:!validStaffEmail) return notify(signInRole==='student'?'Use your @my.xu.edu.ph student account.':'Use your official XU staff email address.');
+        if(!email||!pass) return notify('Enter your XU email and password.');\n        const emailDomain=email.toLowerCase().split('@').pop();
+        const hasLocalPart=email.indexOf('@')>0;
+        const validStudentEmail=hasLocalPart && emailDomain==='my.xu.edu.ph';
+        const validStaffEmail=hasLocalPart && ['xu.edu.ph','my.xu.edu.ph'].includes(emailDomain);
+        if(signInRole==='student'?!validStudentEmail:!validStaffEmail) return notify(signInRole==='student'?'Use your @my.xu.edu.ph student account.':'Use your official XU staff email address.');
         if (cloudMode) {
           backend.signIn(email,pass).then(async result=>{
             if(result.profile.role!==signInRole) { await backend.signOut(); throw new Error(`This account is registered as ${result.profile.role}, not ${signInRole}.`); }
