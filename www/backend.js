@@ -132,7 +132,7 @@
     });
     fail(error); return mapRequest(data);
   }
-  async function signedPdfUrl(path) {
+  async function getRequestByCode(code) {\n    const { data, error } = await client.from('print_requests').select('*').ilike('retrieval_code', code.trim()).maybeSingle();\n    fail(error); return data ? mapRequest(data) : null;\n  }\n  async function signedPdfUrl(path) {
     const { data, error } = await client.storage.from(bucket).createSignedUrl(path, 90);
     fail(error, 'The PDF could not be opened.'); return data.signedUrl;
   }
@@ -147,6 +147,6 @@
   window.PrintFairBackend = Object.freeze({
     isConfigured: () => Boolean(configured), getSession, getProfile, signIn, signUp, signOut,
     sendPasswordReset, loadState, loadStations, createRequest, cancelRequest, updateStation,
-    addStation, correctRequest, claimCode, signedPdfUrl, subscribe
+    addStation, correctRequest, claimCode, getRequestByCode, signedPdfUrl, subscribe
   });
 })();
