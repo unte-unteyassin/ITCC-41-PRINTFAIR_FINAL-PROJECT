@@ -128,7 +128,7 @@
     // A frozen afternoon clock lets the course UI demo work after library hours.
     const current=now().getTime(); let changed=false;
     for(const r of state.requests) {
-      if(r.status==='Reserved' && new Date(`${r.createdAt.slice(0,10)}T16:30:00+08:00`).getTime() <= current) {
+      if(r.status==='Reserved' && new Date(r.expiresAt || (new Date(r.createdAt).getTime()+24*60*60*1000)).getTime() <= current) {
         changeStatus(r,'Expired','Unused code expired'); changed=true;
       }
     }
@@ -247,7 +247,7 @@
     if(!r) return shell(heading('Retrieval Code','No active request') + card('<p class="sm">There is no document currently awaiting retrieval.</p>')+button('Back to requests','requests','btn block top')+'</div>','requests');
     return shell(heading('Retrieval Code') + '<div class="text-status good-text">Ready for retrieval</div>' +
       card(`<div class="row"><span class="docicon">${icon('file',20)}</span><div><div class="filename">${escapeHTML(r.file)}</div><div class="meta">${r.pages} pages · PDF document<br>Requested ${timestampLabel(r.createdAt)}</div></div></div>`, 'top') +
-      `<div class="codebox"><small>YOUR RETRIEVAL CODE</small><div class="code">${escapeHTML(r.code)}</div><small>${icon('clock',12)} VALID UNTIL ${r.expiresAt?timestampLabel(r.expiresAt):'4:30 PM'}</small></div>` +
+      `<div class="codebox"><small>YOUR RETRIEVAL CODE</small><div class="code">${escapeHTML(r.code)}</div><small>${icon('clock',12)} VALID FOR 24 HOURS</small><p class="xs text-muted">Expires: ${timestampLabel(r.expiresAt || new Date(new Date(r.createdAt).getTime()+24*60*60*1000).toISOString())}</p></div>` +
       card(`<b class="sm">How to retrieve your document</b><div class="col top">${[
         'Go to an available library printing station',
         'Enter the code on the PC webpage',
@@ -310,41 +310,30 @@
     const headingText=staff?'Transaction details':'Request details';
     return shell(heading(headingText,'Digital request and retrieval record') +
       card(`<div class="row"><span class="docicon">${icon('file',19)}</span><div class="docinfo"><div class="filename">${escapeHTML(r.file)}</div><div class="meta">Request #${escapeHTML(r.id)}</div><div class="top">${badge(r.status)}</div></div><b class="sm">${r.pages} pages</b></div>`) +
-      '<h2>Student information</h2>' + card(informationRow('Student name',r.student)+informationRow('Gmail address',r.email)+informationRow('Year level',r.year)+informationRow('Course / Program',r.program)) +
+      '<h2>Student information</h2>' + card(informationRow('Student name',r.student)+informationRow('XU email address',r.email)+informationRow('Year level',r.year)+informationRow('Course / Program',r.program)) +
       '<h2>Request & retrieval record</h2>' + card(informationRow('Requested pages',`${r.pages} pages`)+informationRow('Pages counted in allowance',`${r.countedPages} pages`)+informationRow('Retrieved pages',`${r.retrievedAt?r.pages:0} pages`)+informationRow('Status',r.status)+informationRow('Requested at',timestampLabel(r.createdAt))+informationRow('Retrieved at',r.retrievedAt?timestampLabel(r.retrievedAt):'Not retrieved')+informationRow('Station',stationTitle(r.stationId)) + (r.reason?informationRow('Note',r.reason):'')) +
       '<div class="notice blue top">Retrieval is recorded automatically. This does not confirm physical printing.</div>' +
       (staff?button('Correct record','open-correction','btn block top'):button('Back to My requests','requests','btn block top'))+'</div>',staff?'transactions-admin':'requests',staff);
   }
   function login() {
     return `<div class="shell login-shell">${brand()}${heading('Welcome to PrintFair')}
-      ${card(`<div class="field"><label for="login-email">XU Email Address</label><input id="login-email" type="email" value="${cloudMode?'':escapeHTML(state.student.email)}" autocomplete="username" placeholder="example@my.xu.edu.ph"></div><div class="field"><label for="login-password">Password</label><input id="login-password" type="password" placeholder="Password" autocomplete="current-password"></div><div class="right">${button('Forgot password?','forgot-password','link')}</div>${button('Sign In','sign-in','btn block top',true)}<div class="role-options"><button type="button" class="btn secondary sm ${signInRole==='student'?'selected':''}" data-action="role-student" aria-pressed="${signInRole==='student'}">Student</button><button type="button" class="btn secondary sm ${signInRole==='admin'?'selected':''}" data-action="role-admin" aria-pressed="${signInRole==='admin'}">Staff</button></div>`,'loginbox')}
-      <div class="notice blue centered login-note">For currently enrolled XU students<br>Staff accounts are issued to authorized personnel.</div>
-      <p class="xs text-muted centered">${cloudMode?'Use your registered XU account. Staff access is issued by the project administrator.':'Local demo mode: sign-in does not verify a real password.'}</p>
-      ${cloudMode?button('Create student account','register','btn secondary block top'):''}</div>`;
-  }
-  function register() {
-    return `<div class="shell login-shell">${brand()}${heading('Create student account','Use your official XU email address')}
-      ${card(`<div class="field"><label for="register-name">Full name</label><input id="register-name" autocomplete="name" maxlength="100"></div>
-      <div class="field"><label for="register-email">XU email</label><input id="register-email" type="email" placeholder="name@my.xu.edu.ph" autocomplete="email"></div>
-      <div class="field"><label for="register-year">Year level</label><select id="register-year"><option value="">Select year</option>${['1st Year','2nd Year','3rd Year','4th Year','5th Year'].map(x=>`<option>${x}</option>`).join('')}</select></div>
-      <div class="field"><label for="register-program">Course / Program</label><input id="register-program" maxlength="100" placeholder="e.g. BS Information Technology"></div>
-      <div class="field"><label for="register-password">Password</label><input id="register-password" type="password" autocomplete="new-password" minlength="8"></div>
-      ${button('Create account','create-account','btn block top',true)}`,'loginbox')}
-      ${button('Back to sign in','back-to-login','btn secondary block top')}</div>`;
+      ${card(`<div class="field"><label for="login-email">XU Email Address</label><input id="login-email" type="email" value="${cloudMode?'':escapeHTML(state.student.email)}" autocomplete="username" placeholder="name@my.xu.edu.ph"></div><div class="field"><label for="login-password">Password</label><input id="login-password" type="password" placeholder="Password" autocomplete="current-password"></div>${button('Sign In','sign-in','btn block top',true)}<div class="role-options"><button type="button" class="btn secondary sm ${signInRole==='student'?'selected':''}" data-action="role-student" aria-pressed="${signInRole==='student'}">Student</button><button type="button" class="btn secondary sm ${signInRole==='admin'?'selected':''}" data-action="role-admin" aria-pressed="${signInRole==='admin'}">Staff</button></div>`,'loginbox')}
+      <div class="notice blue centered login-note">Sign in using an existing Xavier University account. New accounts cannot be created through PrintFair.</div>
+      <p class="xs text-muted centered">${cloudMode?'Use your provisioned XU account.':'Local demo mode does not authenticate a real account.'}</p></div>`;
   }
   function guidelines() {
     return shell(heading('Free printing guidelines','XU Library service rules')+
       card(`<div class="rules"><p>Maximum 20 pages per student each day.</p><p>First come, first served at the library.</p><p>Students supply their own bond paper.</p><p>Printing is for academic use.</p><p>The existing physical logbook is still required.</p><p>Printing hours: 8:30–11:30 AM and 1:30–4:30 PM (provided XU notice).</p><p>Temporary PDFs are removed at the end of the service day.</p></div>`) + button('Back to profile','back-to-profile','btn block top')+'</div>',state.role==='admin'?'profile-admin':'profile',state.role==='admin');
   }
   const routes = {
-    login,register,dashboard,upload,review,requests,code,stations,allowance,
+    login,dashboard,upload,review,requests,code,stations,allowance,
     profile:()=>profile(false), 'dashboard-admin':adminDashboard,'stations-admin':adminStations,
     'transactions-admin':adminTransactions,'profile-admin':()=>profile(true),guidelines
   };
   function render() {
     expirePending();
     let r=route();
-    if(!state.role && !['login','register'].includes(r)) { location.hash='#login'; r='login'; }
+    if(!state.role && r!=='login') { location.hash='#login'; r='login'; }
     if (state.role === 'student' && (r.endsWith('-admin') || r.startsWith('transaction-detail/'))) { location.hash='#dashboard'; r='dashboard'; }
     if (state.role === 'admin' && ['dashboard','upload','review','requests','code','stations','allowance','profile'].includes(r)) { location.hash='#dashboard-admin'; r='dashboard-admin'; }
     const match = r.match(/^(request-detail|transaction-detail)\/(PF-[A-Z0-9]+)$/i);
@@ -520,21 +509,9 @@
       case 'open-kiosk': window.open('kiosk.html','_blank','noopener'); break;
       case 'role-student': signInRole='student';render();break;
       case 'role-admin': signInRole='admin';render();break;
-      case 'register': if(cloudMode) navigate('register'); else notify('Student registration is available after the shared backend is configured.'); break;
-      case 'back-to-login': navigate('login'); break;
-      case 'create-account': {
-        if(!cloudMode) return notify('Student registration requires a configured shared backend.');
-        const fullName=$('#register-name')?.value.trim(); const email=$('#register-email')?.value.trim();
-        const year=$('#register-year')?.value; const program=$('#register-program')?.value.trim(); const password=$('#register-password')?.value;
-        if(!fullName||!email||!year||!program||!password) return notify('Complete every field.');
-        if(!/^[^\s@]+@my\.xu\.edu\.ph$/i.test(email)) return notify('Use your official @my.xu.edu.ph email.');
-        if(password.length<8) return notify('Use a password with at least 8 characters.');
-        backend.signUp({fullName,email,year,program,password}).then(result=>{notify(result.session?'Account created. You can now sign in.':'Check your XU email to confirm your account, then sign in.');navigate('login');}).catch(error=>notify(error.message));
-        break;
-      }
       case 'sign-in': {
         const email=$('#login-email')?.value.trim();const pass=$('#login-password')?.value;
-        if(!email||!email.includes('@')||!pass) return notify('Enter an email and password to continue.');
+        if(!email||!pass) return notify('Enter your XU email and password.');\n        if(!/^[^\\s@]+@my\\.xu\\.edu\\.ph$/i.test(email)) return notify('Use your @my.xu.edu.ph Xavier University account.');
         if (cloudMode) {
           backend.signIn(email,pass).then(async result=>{
             if(result.profile.role!==signInRole) { await backend.signOut(); throw new Error(`This account is registered as ${result.profile.role}, not ${signInRole}.`); }
