@@ -67,7 +67,7 @@
   async function staffLogin() {
     const email = document.querySelector('#staff-email').value.trim();
     const password = document.querySelector('#staff-password').value;
-    if (!email || !password) return showStaff('Enter your staff email and password.');\n    if (!/^[^\\s@]+@(?:xu\\.edu\\.ph|my\\.xu\\.edu\\.ph)$/i.test(email)) return showStaff('Use your official XU staff email address.');
+    if (!email || !password) return showStaff('Enter your staff email and password.');\n    const emailDomain=email.toLowerCase().split('@').pop();\n    if (email.indexOf('@')<=0 || !['xu.edu.ph','my.xu.edu.ph'].includes(emailDomain)) return showStaff('Use your official XU staff email address.');
     try {
       const result = await backend.signIn(email, password);
       if (result.profile.role !== 'admin') {
