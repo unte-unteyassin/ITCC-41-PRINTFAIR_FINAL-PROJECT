@@ -599,6 +599,7 @@
   document.addEventListener('change',event=>{
     const input=event.target;
     if(input.id==='pdf-file') {
+      pdfSelectionToken += 1;
       const file=input.files?.[0];
       selectedPdfFile=null; selectedPdfBytes=null;
       if(uiDraftFileUrl) { URL.revokeObjectURL(uiDraftFileUrl); uiDraftFileUrl=null; }
