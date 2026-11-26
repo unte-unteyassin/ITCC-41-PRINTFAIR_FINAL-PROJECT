@@ -229,7 +229,7 @@
     return shell(heading('Review & submit','Step 2 of 2 - Check your printing request') +
       '<div class="stepbar"><span class="on"></span><span class="on"></span></div><div class="row between xs"><strong>1 Uploaded</strong><strong>2 Review</strong></div>' +
       card(`<div class="review-file">${icon('file',17)} <span class="filename">${escapeHTML(draft.file)}</span><span class="meta">${draft.totalPages} pages</span></div><div class="pdf-preview-layout top"><div class="pdfpreview"><div class="pdf-page"><canvas id="pdf-preview-canvas" aria-label="Selected PDF page preview"></canvas></div></div><div class="pdf-preview-controls"><div><b class="sm">Document preview</b><div class="sm text-muted">Page <strong id="preview-current">1</strong> of ${draft.totalPages}</div></div><div class="row">${button(icon('left',16),'prev-preview','btn ghost sm')}${button(icon('arrow',16),'next-preview','btn ghost sm')}</div></div></div>`, 'top') +
-      card(`<b class="sm">Pages to print</b><p class="xs text-muted">Choose a range (example: 1-8)</p><div class="field-row"><input id="page-range" class="range-input" aria-label="Page range" value="${escapeHTML(draft.range)}"><span class="sm" id="range-count">${pages===null?'Invalid range':`${pages} pages selected`}</span></div>`, 'top') +
+      card(`<b class="sm">Pages to print</b><p class="xs text-muted">Choose a range (example: 1-8)</p><div class="field-row"><input id="page-range" class="range-input" aria-label="Page range" inputmode="text" autocomplete="off" maxlength="200" value="${escapeHTML(draft.range)}"><span class="sm" id="range-count">${pages===null?'Invalid range':`${pages} pages selected`}</span></div>`, 'top') +
       `<div class="notice ${allowed?'green':'red'}" id="validation-notice">${escapeHTML(validation)}</div>` +
       button('Submit print request','submit','btn block',true) + '<p class="xs text-muted centered">A retrieval code is generated after submission.</p></div>', 'requests');
   }
@@ -386,6 +386,10 @@
       pdf = await task.promise;
       if (token !== previewRenderToken || !canvas.isConnected) return;
       const safePage = Math.min(pdf.numPages, Math.max(1, Number(pageNumber) || 1));
+      const previousButton = $('[data-action="prev-preview"]');
+      const nextButton = $('[data-action="next-preview"]');
+      if (previousButton) previousButton.disabled = safePage <= 1;
+      if (nextButton) nextButton.disabled = safePage >= pdf.numPages;
       const page = await pdf.getPage(safePage);
       const base = page.getViewport({ scale: 1 });
       const box = canvas.parentElement?.getBoundingClientRect();
