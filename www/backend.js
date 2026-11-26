@@ -126,6 +126,14 @@
     });
     fail(error); return mapRequest(data);
   }
+  async function getRequestByCode(code) {
+    const normalized = String(code || '').trim().toUpperCase();
+    if (!/^CN3-[A-Z0-9]{4,12}$/.test(normalized)) throw new Error('Enter a valid retrieval code.');
+    const { data, error } = await client.from('print_requests').select('*')
+      .eq('retrieval_code', normalized).maybeSingle();
+    fail(error);
+    return data ? mapRequest(data) : null;
+  }
   async function claimCode(code, stationId) {
     const { data, error } = await client.rpc('claim_print_request', {
       p_code: code, p_station_id: stationId
@@ -147,6 +155,6 @@
   window.PrintFairBackend = Object.freeze({
     isConfigured: () => Boolean(configured), getSession, getProfile, signIn, signUp, signOut,
     sendPasswordReset, loadState, loadStations, createRequest, cancelRequest, updateStation,
-    addStation, correctRequest, claimCode, signedPdfUrl, subscribe
+    addStation, correctRequest, getRequestByCode, claimCode, signedPdfUrl, subscribe
   });
 })();
