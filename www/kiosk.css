@@ -3,3 +3,35 @@
 .site-head,.panel{box-shadow:none}
 
 [hidden]{display:none!important}.panel input,.panel select{width:100%;border:1px solid #d6e0ec;background:#f8faff;border-radius:10px;padding:13px;font:inherit;color:var(--navy);margin:0 0 14px}.panel button{background:#194785;color:white;width:100%;margin-top:10px}#reset,#staff-logout{background:#eef3fa;color:var(--blue)}#staff-message{font-size:13px;margin-top:10px;min-height:12px}
+
+
+/* Keep the library retrieval page usable on narrow phones, tablets and desktops. */
+html{min-width:320px;overflow-x:hidden}
+body{width:100%;overflow-x:hidden}
+.site-head{width:100%;min-width:0;flex-wrap:wrap}
+.site-head>div{min-width:0;overflow-wrap:anywhere}
+.site-head small{display:block;line-height:1.35}
+.container{width:100%;max-width:570px}
+.panel{min-width:0}
+.panel input,.panel select{min-width:0;max-width:100%}
+#k-code{font-size:clamp(16px,5vw,24px);letter-spacing:clamp(1px,.8vw,4px)}
+.doc-row{min-width:0;flex-wrap:wrap}
+.doc-row>div{min-width:0;flex:1 1 160px;overflow-wrap:anywhere}
+.doc-row strong,.doc-row small{overflow-wrap:anywhere;word-break:break-word}
+.status{flex:0 0 auto;margin-left:auto}
+#message,#staff-message{overflow-wrap:anywhere;line-height:1.5}
+@media(max-width:420px){
+  .site-head{gap:8px;padding:10px}
+  .crest{width:48px;height:48px}
+  .site-head strong{font-size:19px}
+  .site-head small{font-size:10px}
+  .container{margin-top:26px;padding:0 12px}
+  .panel{padding:15px}
+  h1{font-size:clamp(20px,6vw,23px)}
+  .intro{font-size:13px}
+  #k-code{padding:14px 8px}
+}
+@media(min-width:700px){
+  .container{margin-top:54px}
+  .panel{padding:28px}
+}
