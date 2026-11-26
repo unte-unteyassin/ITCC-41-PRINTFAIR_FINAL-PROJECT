@@ -67,7 +67,7 @@
   async function staffLogin() {
     const email = document.querySelector('#staff-email').value.trim();
     const password = document.querySelector('#staff-password').value;
-    if (!email || !password) return showStaff('Enter your staff email and password.');\n    const emailDomain=email.toLowerCase().split('@').pop();\n    if (email.indexOf('@')<=0 || !['xu.edu.ph','my.xu.edu.ph'].includes(emailDomain)) return showStaff('Use your official XU staff email address.');
+    if (!email || !password) return showStaff('Enter your staff email and password.');
     try {
       const result = await backend.signIn(email, password);
       if (result.profile.role !== 'admin') {
@@ -101,7 +101,7 @@
     if (!record) throw new Error('Code not found. Check the code in My Requests.');
     if (record.status !== 'Reserved') throw new Error(`This request is ${String(record.status).toLowerCase()}; its code is no longer valid.`);
     const time = state.previewTime || new Date().toISOString();
-    const expiresAt = record.expiresAt || new Date(new Date(record.createdAt).getTime()+24*60*60*1000).toISOString();
+    const expiresAt = record.expiresAt || `${String(record.createdAt).slice(0,10)}T16:30:00+08:00`;
     if (new Date(expiresAt).getTime() <= new Date(time).getTime()) {
       record.status = 'Expired'; record.reason = 'Unused retrieval code expired'; record.countedPages = 0;
       record.history ||= []; record.history.push({ status:'Expired', at:time, reason:record.reason });
@@ -137,7 +137,10 @@
       let record, url, demoSample = false;
       if (cloudMode) {
         if (staffProfile?.role !== 'admin') throw new Error('Authorized library staff sign-in is required.');
-        record = await backend.getRequestByCode(code);\n        if (!record) throw new Error('Code not found. Check the code and try again.');\n        if (record.status !== 'Reserved') throw new Error(`This request is ${String(record.status).toLowerCase()}; its code is no longer valid.`);\n        if (new Date(record.expiresAt).getTime() <= Date.now()) throw new Error('This retrieval code has expired. The request remains in history.');\n        const sourceUrl = await backend.signedPdfUrl(record.storagePath);
+        record = await backend.claimCode(code, document.querySelector('#station-id').value);
+        if (record.status === 'Expired') throw new Error('This retrieval code has expired. The request remains in history.');
+        if (record.status !== 'Retrieved') throw new Error('The retrieval could not be completed.');
+        const sourceUrl = await backend.signedPdfUrl(record.storagePath);
         const response = await fetch(sourceUrl);
         if (!response.ok) throw new Error('The stored PDF could not be downloaded. The request was retrieved, but the file is unavailable.');
         const preparedBlob = await createRequestedPagesPdf(await response.blob(), record);
