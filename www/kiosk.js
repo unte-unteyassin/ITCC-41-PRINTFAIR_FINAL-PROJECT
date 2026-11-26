@@ -68,6 +68,10 @@
     const email = document.querySelector('#staff-email').value.trim();
     const password = document.querySelector('#staff-password').value;
     if (!email || !password) return showStaff('Enter your staff email and password.');
+    const domain = email.toLowerCase().split('@').pop();
+    if (email.indexOf('@') <= 0 || !['xu.edu.ph','my.xu.edu.ph'].includes(domain)) {
+      return showStaff('Use your official XU staff email address.');
+    }
     try {
       const result = await backend.signIn(email, password);
       if (result.profile.role !== 'admin') {
@@ -110,7 +114,8 @@
     }
     const stationId = document.querySelector('#station-id').value;
     const station = state.stations?.find(x => x.id === stationId);
-    if (station && station.status !== 'Operational') throw new Error('The selected station is not operational. Choose another station.');
+    if (!station) throw new Error('Select a valid printing station.');
+    if (station.status !== 'Operational') throw new Error('The selected station is not operational. Choose another station.');
     let blob = record.storageKey ? await window.PrintFairFiles.get(record.storageKey) : null;
     let demoSample = false;
     if (!blob && !record.storageKey) {
@@ -131,19 +136,32 @@
 
   async function retrieve() {
     result.hidden = true; openPdf.hidden = true;
+    if (currentObjectUrl) { URL.revokeObjectURL(currentObjectUrl); currentObjectUrl = null; }
     const code = input.value.trim().toUpperCase();
     if (!code) return show('Enter the code from the student request.');
+    if (!/^CN3-[A-Z0-9]{4,12}$/.test(code)) return show('Enter the retrieval code in the format CN3-XXXXXXXX.');
     try {
       let record, url, demoSample = false;
       if (cloudMode) {
         if (staffProfile?.role !== 'admin') throw new Error('Authorized library staff sign-in is required.');
-        record = await backend.claimCode(code, document.querySelector('#station-id').value);
-        if (record.status === 'Expired') throw new Error('This retrieval code has expired. The request remains in history.');
-        if (record.status !== 'Retrieved') throw new Error('The retrieval could not be completed.');
-        const sourceUrl = await backend.signedPdfUrl(record.storagePath);
+        const stationId = document.querySelector('#station-id').value;
+        if (!stationId) throw new Error('Select an operational printing station.');
+        const candidate = await backend.getRequestByCode(code);
+        if (!candidate) throw new Error('Code not found. Check the code in My Requests.');
+        if (candidate.status !== 'Reserved') throw new Error(`This request is ${String(candidate.status).toLowerCase()}; its code is no longer valid.`);
+        if (candidate.expiresAt && new Date(candidate.expiresAt).getTime() <= Date.now()) {
+          const expired = await backend.claimCode(code, stationId);
+          if (expired.status === 'Expired') throw new Error('This retrieval code has expired. The request remains in history.');
+          throw new Error('This retrieval code is no longer available.');
+        }
+        const sourceUrl = await backend.signedPdfUrl(candidate.storagePath);
         const response = await fetch(sourceUrl);
-        if (!response.ok) throw new Error('The stored PDF could not be downloaded. The request was retrieved, but the file is unavailable.');
-        const preparedBlob = await createRequestedPagesPdf(await response.blob(), record);
+        if (!response.ok) throw new Error('The stored PDF could not be downloaded. The request has not been marked as retrieved.');
+        const preparedBlob = await createRequestedPagesPdf(await response.blob(), candidate);
+        record = await backend.claimCode(code, stationId);
+        if (record.id !== candidate.id || record.status !== 'Retrieved') {
+          throw new Error('This code was already used or expired before retrieval could be completed.');
+        }
         url = URL.createObjectURL(preparedBlob);
         currentObjectUrl = url;
       } else {
