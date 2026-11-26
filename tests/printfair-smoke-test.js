@@ -21,7 +21,13 @@ assert.equal(rules.parsePageRange('1-5', 0), null, 'a PDF must have at least one
 assert.deepEqual(rules.expandPageRange('1-3, 5, 4', 10), [1,2,3,5,4]);
 assert.deepEqual(rules.expandPageRange('1-3,3-5', 10), [1,2,3,4,5]);
 assert.equal(rules.expandPageRange('1-11', 10), null);
+assert.equal(rules.parsePageRange('1-2', 1.5), null, 'page maximum must be an integer');
+assert.equal(rules.parsePageRange('1-2', 5001), null, 'page maximum must respect the supported PDF limit');
+assert.equal(rules.parsePageRange('1'.repeat(201), 5000), null, 'page range input must be bounded');
+assert.equal(rules.parsePageRange('1-3,2-4', 10), 4, 'overlapping ranges must not double count pages');
 assert.equal(rules.canReserve(8, 8), true);
 assert.equal(rules.canReserve(7, 8), false);
 assert.equal(rules.canReserve(20, 0), false);
-console.log(`PrintFair smoke tests passed: ${valid.length} valid ranges, ${invalid.length + 2} invalid cases, and allowance checks.`);
+assert.equal(rules.canReserve(20, 1.5), false, 'fractional page counts must fail');
+assert.equal(rules.canReserve(Number.NaN, 1), false, 'invalid remaining allowance must fail');
+console.log(`PrintFair smoke tests passed: ${valid.length} valid ranges, ${invalid.length + 5} invalid cases, and allowance checks.`);
