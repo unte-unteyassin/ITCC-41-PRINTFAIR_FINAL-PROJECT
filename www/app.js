@@ -511,7 +511,8 @@
       case 'role-admin': signInRole='admin';render();break;
       case 'sign-in': {
         const email=$('#login-email')?.value.trim();const pass=$('#login-password')?.value;
-        if(!email||!pass) return notify('Enter your XU email and password.');\n        const emailDomain=email.toLowerCase().split('@').pop();
+        if(!email||!pass) return notify('Enter your XU email and password.');
+        const emailDomain=email.toLowerCase().split('@').pop();
         const hasLocalPart=email.indexOf('@')>0;
         const validStudentEmail=hasLocalPart && emailDomain==='my.xu.edu.ph';
         const validStaffEmail=hasLocalPart && ['xu.edu.ph','my.xu.edu.ph'].includes(emailDomain);
