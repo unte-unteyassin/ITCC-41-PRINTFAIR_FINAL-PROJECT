@@ -33,6 +33,8 @@
   let uiDraftFileUrl = null;
   let selectedPdfFile = null;
   let selectedPdfBytes = null;
+  let pdfSelectionToken = 0;
+  let submittingRequest = false;
   let stopLiveUpdates = null;
   let profileReturn = 'dashboard';
   let correctionTarget = null;
@@ -226,7 +228,7 @@
     const validation=activeRequest()?'You already have an active request.':pages===null?'Enter a page range within the document.':pages>remainingPages()?`Only ${remainingPages()} pages are currently available.`:`Within your recorded allowance. Available: ${remainingPages()} · Request: ${pages} · Remaining: ${remainingPages()-pages}`;
     return shell(heading('Review & submit','Step 2 of 2 - Check your printing request') +
       '<div class="stepbar"><span class="on"></span><span class="on"></span></div><div class="row between xs"><strong>1 Uploaded</strong><strong>2 Review</strong></div>' +
-      card(`<div class="review-file">${icon('file',17)} <span class="filename">${escapeHTML(draft.file)}</span><span class="meta">${draft.totalPages} pages</span></div><div class="row top"><div class="pdfpreview"><div class="pdf-page"><canvas id="pdf-preview-canvas" aria-label="Selected PDF page preview"></canvas></div></div><div class="flex1"><b class="sm">Document preview</b><div class="bold top">Page <span id="preview-current">1</span> of ${draft.totalPages}</div><p class="sm text-muted">Review the document layout.</p><div class="row">${button(icon('left',16),'prev-preview','btn ghost sm')}${button(icon('arrow',16),'next-preview','btn ghost sm')}</div></div></div>`, 'top') +
+      card(`<div class="review-file">${icon('file',17)} <span class="filename">${escapeHTML(draft.file)}</span><span class="meta">${draft.totalPages} pages</span></div><div class="pdf-preview-layout top"><div class="pdfpreview"><div class="pdf-page"><canvas id="pdf-preview-canvas" aria-label="Selected PDF page preview"></canvas></div></div><div class="pdf-preview-controls"><div><b class="sm">Document preview</b><div class="sm text-muted">Page <strong id="preview-current">1</strong> of ${draft.totalPages}</div></div><div class="row">${button(icon('left',16),'prev-preview','btn ghost sm')}${button(icon('arrow',16),'next-preview','btn ghost sm')}</div></div></div>`, 'top') +
       card(`<b class="sm">Pages to print</b><p class="xs text-muted">Choose a range (example: 1-8)</p><div class="field-row"><input id="page-range" class="range-input" aria-label="Page range" value="${escapeHTML(draft.range)}"><span class="sm" id="range-count">${pages===null?'Invalid range':`${pages} pages selected`}</span></div>`, 'top') +
       `<div class="notice ${allowed?'green':'red'}" id="validation-notice">${escapeHTML(validation)}</div>` +
       button('Submit print request','submit','btn block',true) + '<p class="xs text-muted centered">A retrieval code is generated after submission.</p></div>', 'requests');
@@ -351,46 +353,62 @@
     if (!file) throw new Error('Choose a PDF document first.');
     if (file.size <= 0) throw new Error('This file is empty. Choose a non-empty PDF.');
     if (file.size > 20 * 1024 * 1024) throw new Error('The PDF is larger than the 20 MB upload limit.');
-    if (!/\.pdf$/i.test(file.name) || (file.type && file.type !== 'application/pdf')) throw new Error('Only PDF documents are accepted.');
+    if (!/\.pdf$/i.test(file.name)) throw new Error('Only PDF documents are accepted.');
     const bytes = await file.arrayBuffer();
     const head = new TextDecoder().decode(bytes.slice(0, 1024));
     if (!head.includes('%PDF-')) throw new Error('This file does not contain a valid PDF header.');
     if (!window.pdfjsLib) throw new Error('The PDF reader could not load. Check your internet connection and reload PrintFair.');
+    let pdf = null;
     try {
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       const task = window.pdfjsLib.getDocument({ data: new Uint8Array(bytes.slice(0)), isEvalSupported: false });
-      const pdf = await task.promise;
+      pdf = await task.promise;
       const pages = Number(pdf.numPages);
-      await pdf.destroy();
-      if (!Number.isInteger(pages) || pages < 1) throw new Error('The PDF has no readable pages.');
+      if (!Number.isInteger(pages) || pages < 1 || pages > 5000) throw new Error('The PDF page count is outside the supported range.');
       return { pages, bytes };
     } catch (error) {
       if (/password/i.test(error?.message || '')) throw new Error('This PDF is password-protected. Upload an unlocked copy.');
       throw new Error(`The PDF could not be read. It may be damaged or password-protected. (${error.message || 'Unknown PDF error'})`);
+    } finally {
+      if (pdf) { try { await pdf.destroy(); } catch (_) {} }
     }
   }
 
+  let previewRenderToken = 0;
   async function renderPdfPreview(pageNumber) {
     const canvas = $('#pdf-preview-canvas');
     if (!canvas || !selectedPdfBytes || !window.pdfjsLib) return;
+    const token = ++previewRenderToken;
+    let pdf = null;
     try {
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       const task = window.pdfjsLib.getDocument({ data: new Uint8Array(selectedPdfBytes.slice(0)), isEvalSupported: false });
-      const pdf = await task.promise;
-      const page = await pdf.getPage(pageNumber);
+      pdf = await task.promise;
+      if (token !== previewRenderToken || !canvas.isConnected) return;
+      const safePage = Math.min(pdf.numPages, Math.max(1, Number(pageNumber) || 1));
+      const page = await pdf.getPage(safePage);
       const base = page.getViewport({ scale: 1 });
-      const ratio = Math.max(1, window.devicePixelRatio || 1);
-      const scale = Math.min(105 / base.width, 140 / base.height);
+      const box = canvas.parentElement?.getBoundingClientRect();
+      const maxWidth = Math.max(160, (box?.width || 300) - 28);
+      const maxHeight = Math.max(200, (box?.height || 360) - 28);
+      const scale = Math.min(maxWidth / base.width, maxHeight / base.height);
       const viewport = page.getViewport({ scale });
+      const ratio = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
       canvas.width = Math.ceil(viewport.width * ratio);
       canvas.height = Math.ceil(viewport.height * ratio);
       canvas.style.width = `${viewport.width}px`;
       canvas.style.height = `${viewport.height}px`;
       const context = canvas.getContext('2d');
+      if (!context) throw new Error('The PDF preview canvas is unavailable.');
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      await page.render({ canvasContext: context, viewport }).promise;
-      await pdf.destroy();
-    } catch (error) { console.warn('PDF page preview could not be rendered:', error); }
+      const renderTask = page.render({ canvasContext: context, viewport });
+      await renderTask.promise;
+      if (token !== previewRenderToken) return;
+    } catch (error) {
+      if (token === previewRenderToken) console.warn('PDF page preview could not be rendered:', error);
+    } finally {
+      if (pdf) { try { await pdf.destroy(); } catch (_) {} }
+    }
   }
 
   async function applyCloudState() {
@@ -436,11 +454,13 @@
     });
   }
   async function submitRequest() {
+    if (submittingRequest) return;
     if (!selectedPdfFile || !state.draft.totalPages) return notify('Choose and validate a PDF before submitting.');
     if(activeRequest()) return notify('Only one active request is allowed.');
     const n=validRange(state.draft.range,state.draft.totalPages);
     if(n===null) return notify('Enter a valid page range within the PDF.');
     if(!window.PrintFairRules.canReserve(remainingPages(),n)) return notify(`Only ${remainingPages()} pages remain available.`);
+    submittingRequest = true;
     try {
       let r;
       if (cloudMode) {
@@ -464,6 +484,7 @@
       state.draft={file:'No document selected',totalPages:0,range:'',isSample:false}; save();
       navigate('requests'); notify('Request created. Your selected pages have been reserved.');
     } catch (error) { notify(error.message || 'The request could not be submitted.'); }
+    finally { submittingRequest = false; }
   }
   function openModal(title,contents,actions) {
     document.querySelector('.modal-overlay')?.remove();
@@ -578,15 +599,28 @@
   document.addEventListener('change',event=>{
     const input=event.target;
     if(input.id==='pdf-file') {
-      const file=input.files?.[0]; if(!file)return;
+      const file=input.files?.[0];
       selectedPdfFile=null; selectedPdfBytes=null;
       if(uiDraftFileUrl) { URL.revokeObjectURL(uiDraftFileUrl); uiDraftFileUrl=null; }
+      if(!file) {
+        state.draft={file:'No document selected',totalPages:0,range:'',isSample:false};
+        save(); render(); return;
+      }
+      const selectionToken = ++pdfSelectionToken;
+      state.draft={file:'Validating PDF…',totalPages:0,range:'',isSample:false};
+      save();
       inspectPdf(file).then(parsed=>{
+        if(selectionToken !== pdfSelectionToken) return;
         selectedPdfFile=file; selectedPdfBytes=parsed.bytes;
         uiDraftFileUrl=URL.createObjectURL(file);
         state.draft={file:file.name,totalPages:parsed.pages,range:`1-${Math.min(8,parsed.pages)}`,isSample:false};
         save();render();notify(`PDF validated: ${parsed.pages} actual pages detected.`);
-      }).catch(error=>{selectedPdfFile=null;selectedPdfBytes=null;state.draft={file:'No document selected',totalPages:0,range:'',isSample:false};render();notify(error.message);});
+      }).catch(error=>{
+        if(selectionToken !== pdfSelectionToken) return;
+        selectedPdfFile=null;selectedPdfBytes=null;
+        state.draft={file:'No document selected',totalPages:0,range:'',isSample:false};
+        save();render();notify(error.message);
+      });
     }
     if(input.matches('[data-station]')) {
       if(state.role!=='admin')return;
