@@ -9,3 +9,5 @@ plugins/
 
 # IDE settings
 .idea/
+# Generated Android packages (build locally for each release)
+*.apk
