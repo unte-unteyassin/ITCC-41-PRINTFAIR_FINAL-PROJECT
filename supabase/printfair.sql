@@ -165,7 +165,16 @@ begin
   if v_user is null then raise exception 'Sign in is required.'; end if;
   select * into v_profile from public.profiles where id=v_user;
   if not found or v_profile.role <> 'student' then raise exception 'Only student accounts can submit requests.'; end if;
-  if p_file_name is null or length(trim(p_file_name))=0 or length(p_file_name)>255 or p_file_name !~* '\.pdf
+  if p_file_name is null or p_file_name !~* '\.pdf$' then raise exception 'Only PDF documents are accepted.'; end if;
+  if p_storage_path is null or split_part(p_storage_path,'/',1) <> v_user::text then raise exception 'Invalid document storage path.'; end if;
+  if p_total_pages is null or p_total_pages < 1 or p_total_pages > 5000 then raise exception 'Invalid PDF page count.'; end if;
+  if p_requested_pages is null or p_requested_pages < 1 then raise exception 'Select at least one page.'; end if;
+  if p_page_range is null or length(trim(p_page_range))=0 then raise exception 'Enter a page range.'; end if;
+
+  v_tokens := string_to_array(regexp_replace(p_page_range, '\s', '', 'g'), ',');
+  foreach v_token in array v_tokens loop
+    if v_token !~ '^[0-9]+(-[0-9]+)?$' then raise exception 'Invalid page range.'; end if;
+    v_first := split_part(v_token,'-',1)::integer;
     v_last := case when position('-' in v_token)>0 then split_part(v_token,'-',2)::integer else v_first end;
     if v_first < 1 or v_last < v_first or v_last > p_total_pages then raise exception 'Page range exceeds the PDF page count.'; end if;
     for v_page in v_first..v_last loop
@@ -188,6 +197,7 @@ begin
   if v_reserved + p_requested_pages > 20 then raise exception 'The request exceeds your remaining daily 20-page allowance.'; end if;
 
   v_expiry := now() + interval '24 hours';
+  if v_expiry <= now() then raise exception 'The library retrieval window for today has ended.'; end if;
   v_id := 'PF-' || upper(substr(replace(gen_random_uuid()::text,'-',''),1,10));
   v_code := 'CN3-' || upper(substr(encode(gen_random_bytes(6),'hex'),1,10));
   insert into public.print_requests(
