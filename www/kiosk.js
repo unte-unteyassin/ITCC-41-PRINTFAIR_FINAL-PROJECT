@@ -105,8 +105,10 @@
     if (!record) throw new Error('Code not found. Check the code in My Requests.');
     if (record.status !== 'Reserved') throw new Error(`This request is ${String(record.status).toLowerCase()}; its code is no longer valid.`);
     const time = state.previewTime || new Date().toISOString();
-    const expiresAt = record.expiresAt || `${String(record.createdAt).slice(0,10)}T16:30:00+08:00`;
-    if (new Date(expiresAt).getTime() <= new Date(time).getTime()) {
+    const createdAtMs = new Date(record.createdAt).getTime();
+    const expiresAtMs = record.expiresAt ? new Date(record.expiresAt).getTime() : createdAtMs + 24 * 60 * 60 * 1000;
+    if (!Number.isFinite(createdAtMs) || !Number.isFinite(expiresAtMs)) throw new Error('The request expiration could not be verified. Contact library staff.');
+    if (expiresAtMs <= new Date(time).getTime()) {
       record.status = 'Expired'; record.reason = 'Unused retrieval code expired'; record.countedPages = 0;
       record.history ||= []; record.history.push({ status:'Expired', at:time, reason:record.reason });
       localStorage.setItem(KEY, JSON.stringify(state));
